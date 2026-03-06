@@ -1,210 +1,278 @@
 /**
- * ПРАКТИЧЕСКАЯ РАБОТА №3: ФУНКЦИИ И SCOPE
- * 
- * Архитектура решения:
- * 1. Global Scope (Константы и конфигурация).
- * 2. Validation Layer (Системная индикация рамок .success/.error).
- * 3. Logic Layer (Чистые функции для расчетов).
- * 4. UI Bridge (Обработчики событий для взаимодействия с DOM).
+ * ПРАКТИЧЕСКАЯ РАБОТА №4: ОБЪЕКТЫ И МАССИВЫ
+ * Студент: (Ваше Имя)
+ * Группа: 2509
  */
 
-// --- 0. КОНСТАНТЫ (GLOBAL SCOPE) ---
-// Вынос параметров в глобальную область видимости избавляет от "магических чисел" 
-// и позволяет централизованно управлять логикой приложения.
-const CONFIG = {
-    LBS_RATE: 2.20462,
-    BMR_MALE_BONUS: 5,
-    BMR_FEMALE_OFFSET: -161,
-    FEET_TO_CM: 30.48,
-    INCH_TO_CM: 2.54,
-    // Правила для "живой" валидации по ID элементов из HTML
-    RULES: {
-        weightBMI: { min: 20, max: 300 },
-        heightBMI: { min: 50, max: 250 },
-        weightInput: { min: 0.1, max: 1000 },
-        weightBMR: { min: 20, max: 300 },
-        heightBMR: { min: 50, max: 250 },
-        ageBMR: { min: 10, max: 120 },
-        heightInput: { min: 50, max: 250 },
-        feetInput: { min: 1, max: 8 },
-        inchesInput: { min: 0, max: 11 },
-        weightPro: { min: 20, max: 300 },
-        heightPro: { min: 50, max: 250 }
-    }
-};
+"use strict"; // Используем строгий режим для повышения надежности кода
 
-// --- 1. ТЕМА ОФОРМЛЕНИЯ (LEXICAL ENVIRONMENT) ---
-const themeBtn = document.getElementById('themeToggle');
+// 1. СТАРТОВЫЕ ДАННЫЕ (Массив объектов согласно Page 2 PDF)
+const products = [
+    { id: 1, name: "Ноутбук ASUS", category: "Электроника", price: 2500, inStock: true },
+    { id: 2, name: "Мышь Logitech", category: "Электроника", price: 45, inStock: true },
+    { id: 3, name: "Стол письменный", category: "Мебель", price: 320, inStock: false },
+    { id: 4, name: "Кресло офисное", category: "Мебель", price: 480, inStock: true },
+    { id: 5, name: "Наушники Sony", category: "Электроника", price: 180, inStock: true },
+    { id: 6, name: "Книга «JS для всех»", category: "Книги", price: 25, inStock: true },
+    { id: 7, name: "Книга «Clean Code»", category: "Книги", price: 30, inStock: false },
+    { id: 8, name: "Монитор LG 27\"", category: "Электроника", price: 750, inStock: true },
+];
 
-/**
- * Используется Arrow Function (Стрелочная функция). 
- * Выбор обоснован лаконичностью синтаксиса для вспомогательных задач.
- * Функция получает доступ к themeBtn через лексическое окружение (внешний Scope).
- */
-const switchTheme = (isDark) => {
-    document.body.classList.toggle('dark-mode', isDark);
-    if (themeBtn) themeBtn.innerText = isDark ? '☀️' : '🌙';
-};
+let cart = []; // Массив для хранения товаров в корзине
 
-// Автоматическая установка темы по времени суток (19:00 - 07:00)
-const hour = new Date().getHours();
-switchTheme(hour >= 19 || hour < 7);
+// 2. ПОИСК ЭЛЕМЕНТОВ DOM (Все обработчики только через addEventListener согласно Page 1)
+const catalogContainer = document.getElementById('catalog-container');
+const filterResults = document.getElementById('filter-results');
+const cartContainer = document.getElementById('cart-container');
+const cartTotal = document.getElementById('cart-total');
 
-if (themeBtn) {
-    themeBtn.onclick = () => switchTheme(!document.body.classList.contains('dark-mode'));
-}
+const btnShowAll = document.getElementById('btn-show-all');
+const btnSearch = document.getElementById('btn-search');
+const btnShowCart = document.getElementById('btn-show-cart');
+const btnClearCart = document.getElementById('btn-clear-cart');
 
-// --- 2. ЖИВАЯ ВАЛИДАЦИЯ И UI (DOM MANIPULATION) ---
+const searchInput = document.getElementById('search-input');
+const categorySelect = document.getElementById('category-select');
 
-/**
- * Функция validate(el) управляет визуальным состоянием полей (рамками).
- * Добавляет классы .success (зеленый) или .error (красный) из CSS.
- * Соблюдает принцип SRP (Single Responsibility) — отвечает только за индикацию.
- */
-function validate(el) {
-    const rule = CONFIG.RULES[el.id];
-    if (!rule) return true;
-
-    const val = parseFloat(el.value);
-    // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: использование логического && вместо побитового &
-    const isValid = !isNaN(val) && val >= rule.min && val <= rule.max;
-
-    if (el.value.trim() === "") {
-        el.classList.remove('error', 'success');
-        return false;
-    }
-
-    if (isValid) {
-        el.classList.add('success'); el.classList.remove('error');
-    } else {
-        el.classList.add('error'); el.classList.remove('success');
-    }
-    return isValid;
-}
-
-/**
- * Универсальный мост для вывода данных в блоки .result.
- * Активирует видимость плашки добавлением класса .show.
- */
-function output(id, text, isError = false) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.innerText = text;
-    el.classList.add('show');
-    // Динамическая стилизация цвета текста и полоски в зависимости от статуса
-    el.style.color = isError ? "#ff4757" : "";
-    el.style.borderLeftColor = isError ? "#ff4757" : "#2ecc71";
-}
-
-// Глобальный слушатель событий для мгновенного отклика интерфейса
-document.addEventListener('input', (e) => {
-    if (e.target.tagName === 'INPUT') validate(e.target);
+// --- ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ОТРИСОВКИ ---
+// Инкапсулируем логику создания HTML, чтобы не дублировать код в разных заданиях
+const renderCard = (product) => {
+    // Проверка наличия (Задание 1: товары out-of-stock выделяются классом из CSS)
+    const stockClass = product.inStock ? "" : "out-of-stock";
+    const statusText = product.inStock ? "✅ В наличии" : "❌ Нет в наличии";
     
-    // Скрываем блок результата при изменении данных для обеспечения актуальности
-    const section = e.target.closest('section');
-    if (section) section.querySelector('.result')?.classList.remove('show');
+    // Кнопка добавляется только если товар в наличии (Задание 4)
+    const buyButton = product.inStock 
+        ? `<button class="btn btn-primary btn-cart" data-id="${product.id}">В корзину</button>` 
+        : "";
+
+    return `
+        <div class="product-card ${stockClass}">
+            <h3>${product.name}</h3>
+            <p>Категория: ${product.category}</p>
+            <p class="price">${product.price} BYN</p>
+            <p><small>${statusText}</small></p>
+            ${product.label ? `<p><i>${product.label}</i></p>` : ""}
+            ${buyButton}
+        </div>
+    `;
+};
+
+// --- ЗАДАНИЕ 1. ВЫВОД КАТАЛОГА (forEach) ---
+btnShowAll.addEventListener('click', () => {
+    catalogContainer.innerHTML = ''; // Очистка перед выводом
+    
+    // ИСПОЛЬЗУЮ forEach, потому что: нам нужно выполнить действие (отрисовку) для каждого 
+    // элемента массива, не создавая при этом новый массив данных.
+    products.forEach(product => {
+        catalogContainer.innerHTML += renderCard(product);
+    });
 });
 
-// --- 3. РЕАЛИЗАЦИЯ ЗАДАНИЙ ---
+// --- ЗАДАНИЕ 2 И 3. ФИЛЬТРАЦИЯ И ПОИСК (filter + map) ---
+btnSearch.addEventListener('click', () => {
+    // ВАЛИДАЦИЯ (Page 1): убираем лишние пробелы и приводим к нижнему регистру
+    const searchText = searchInput.value.toLowerCase().trim();
+    const selectedCategory = categorySelect.value;
 
-// # Задание 1: ИМТ (FUNCTION DECLARATION) #
-/**
- * Выбран тип Function Declaration. 
- * Преимущество: поддержка Hoisting (всплытия), что позволяет структурировать 
- * код, вызывая функции в HTML до их фактического описания в скрипте.
- */
-function handleBMI() {
-    const w = document.getElementById('weightBMI'), h = document.getElementById('heightBMI');
-    if (validate(w) && validate(h)) {
-        const bmi = (w.value / ((h.value / 100) ** 2)).toFixed(1);
-        let cat = bmi < 18.5 ? "Дефицит" : bmi < 25 ? "Норма" : "Избыток/Ожирение";
-        output('bmiResult', `Ваш ИМТ: ${bmi} (${cat})`);
-    }
-}
+    // Цепочка методов (Подсказка Page 4)
+    const filtered = products
+        // ИСПОЛЬЗУЮ filter, потому что: это позволяет отобрать только те товары, 
+        // которые соответствуют строке поиска и выбранной категории, не меняя оригинал.
+        .filter(p => p.name.toLowerCase().includes(searchText))
+        .filter(p => selectedCategory === "Все" || p.category === selectedCategory)
+        // ИСПОЛЬЗУЮ map, потому что: по Заданию 3 нужно преобразовать объекты, 
+        // добавив им вычисляемое поле label для отображения.
+        .map(p => ({
+            ...p, // Spread-оператор для копирования свойств (Вопрос 6)
+            label: `${p.name} — ${p.price} BYN`
+        }));
 
-// # Задание 2: КОНВЕРТЕР (FUNCTION EXPRESSION) #
-/**
- * Выбран тип Function Expression (анонимные функции в переменных).
- * Особенность: не всплывают (no hoisting). Доступны строго после инициализации, 
- * что предотвращает их случайный вызов до загрузки конфигурации.
- */
-const toLbs = (kg) => (kg * CONFIG.LBS_RATE).toFixed(2);
-const toKg = (lbs) => (lbs / CONFIG.LBS_RATE).toFixed(2);
-
-function handleKgToLbs() {
-    const el = document.getElementById('weightInput');
-    if (validate(el)) output('weightResult', `${el.value} кг = ${toLbs(el.value)} lbs`);
-}
-function handleLbsToKg() {
-    const el = document.getElementById('weightInput');
-    if (validate(el)) output('weightResult', `${el.value} lbs = ${toKg(el.value)} кг`);
-}
-
-// # Задание 3: КАЛОРИИ (BMR + LEXICAL SCOPE) #
-/**
- * Демонстрирует работу лексического окружения: функция ищет коэффициенты 
- * BMR_BONUS во внешнем Scope (объекте CONFIG), когда не находит их внутри себя.
- */
-function handleBMR() {
-    const w = document.getElementById('weightBMR'), h = document.getElementById('heightBMR'),
-          a = document.getElementById('ageBMR'), g = document.getElementById('genderBMR');
-
-    if (validate(w) && validate(h) && validate(a) && g.value) {
-        const bonus = (g.value === 'male') ? CONFIG.BMR_MALE_BONUS : CONFIG.BMR_FEMALE_OFFSET;
-        const bmr = (10 * w.value) + (6.25 * h.value) - (5 * a.value) + bonus;
-        const genderText = g.value === 'male' ? 'мужчина' : 'женщина';
-        output('bmrResult', `Ваша базовая норма калорий: ${Math.round(bmr)} ккал/день (${genderText}, ${a.value} лет)`);
-    } else if (!g.value) {
-        g.classList.add('error');
-        output('bmrResult', "Ошибка: выберите пол!", true);
-    }
-}
-
-// # Задание 4: РОСТ (ARROW FUNCTIONS & FORMATTING) #
-/**
- * Arrow Functions выбраны за лаконичность. 
- * ИСПРАВЛЕНО: Реализован корректный расчет остатка дюймов (0-11) и формат 5'9".
- */
-const cmToFtIn = (cm) => {
-    const total = cm / 2.54;
-    return `${Math.floor(total / 12)}'${Math.round(total % 12)}" (${Math.floor(total / 12)} футов ${Math.round(total % 12)} дюймов)`;
-};
-
-function handleCmToFeet() {
-    const el = document.getElementById('heightInput');
-    if (validate(el)) output('heightResult', `${el.value} см = ${cmToFtIn(el.value)}`);
-}
-
-function handleFeetToCm() {
-    const f = document.getElementById('feetInput'), i = document.getElementById('inchesInput');
-    if (validate(f) && validate(i)) {
-        const res = Math.round((f.value * CONFIG.FEET_TO_CM) + (i.value * CONFIG.INCH_TO_CM));
-        output('heightResult2', `${f.value}'${i.value}" = ${res} см`);
-    }
-}
-
-// # Задание 5: УРОВЕНЬ PRO (CLOSURES / ЗАМЫКАНИЯ) #
-/**
- * ТЕОРИЯ: Внутренняя функция "захватывает" переменные min/max и продолжает 
- * иметь к ним доступ даже после того, как createValidator завершила работу.
- * Возвращает текст ошибки, что делает валидацию более информативной.
- */
-function createValidator(min, max, label) {
-    return (val) => {
-        const num = parseFloat(val);
-        return (num >= min && num <= max) ? null : `❌ Ошибка: [${label}] вне нормы (${min}-${max})`;
-    };
-}
-
-const checkWeight = createValidator(CONFIG.RULES.weightPro.min, CONFIG.RULES.weightPro.max, "Вес");
-const checkHeight = createValidator(CONFIG.RULES.heightPro.min, CONFIG.RULES.heightPro.max, "Рост");
-
-function handleProValidation() {
-    const w = document.getElementById('weightPro'), h = document.getElementById('heightPro');
-    // Визуальная индикация рамок перед финальной проверкой
-    validate(w); validate(h);
+    filterResults.innerHTML = '';
     
-    const err = checkWeight(w.value) || checkHeight(h.value);
-    if (!err) output('proResult', "✅ Данные корректны! Вес и рост в норме.");
-    else output('proResult', err, true);
-}
+    if (filtered.length === 0) {
+        filterResults.innerHTML = '<p class="empty-state">Товары не найдены</p>';
+    } else {
+        // Отрисовываем результаты через forEach (перебор без возврата значения)
+        filtered.forEach(p => {
+            filterResults.innerHTML += renderCard(p);
+        });
+    }
+});
+
+// --- ЗАДАНИЕ 4. КОРЗИНА (map + reduce + forEach) ---
+
+// Делегирование события клика (чтобы кнопки работали после динамической отрисовки)
+document.addEventListener('click', (e) => {
+    if (e.target.classList.contains('btn-cart')) {
+        const id = parseInt(e.target.dataset.id);
+        const product = products.find(p => p.id === id);
+        
+        // Проверка (Валидация): товар должен быть в наличии и не быть дубликатом в корзине
+        if (product && !cart.some(item => item.id === id)) {
+            cart.push(product);
+        }
+    }
+});
+
+btnShowCart.addEventListener('click', () => {
+    cartContainer.innerHTML = '';
+    
+    if (cart.length === 0) {
+        cartContainer.innerHTML = '<p class="empty-state">Корзина пуста</p>';
+        cartTotal.textContent = '';
+        return;
+    }
+
+    // ИСПОЛЬЗУЮ forEach, потому что: нужно сформировать список строк для вывода 
+    // текущего состояния массива cart на страницу.
+    cart.forEach(item => {
+        cartContainer.innerHTML += `
+            <div class="cart-item">
+                ${item.name} <span>${item.price} BYN</span>
+            </div>`;
+    });
+
+    // ИСПОЛЬЗУЮ map, потому что: согласно Заданию 4, нужно извлечь только цены 
+    // для дальнейшего суммирования.
+    const prices = cart.map(item => item.price);
+    
+    // ИСПОЛЬЗУЮ reduce, потому что: (Вопрос 8) этот метод идеально подходит для 
+    // сведения массива цен к одному числу — итоговой сумме.
+    const total = prices.reduce((sum, current) => sum + current, 0);
+    
+    cartTotal.innerHTML = `<strong>Итого: ${total} BYN</strong>`;
+});
+
+btnClearCart.addEventListener('click', () => {
+    cart = []; // Очистка массива
+    cartContainer.innerHTML = '<p class="empty-state">Корзина очищена</p>';
+    cartTotal.textContent = '';
+});
+
+// --- ЗАДАНИЕ 5. JSON И LOCALSTORAGE (УРОВЕНЬ PRO) ---
+
+// Находим элементы управления из Секции 4 (Разметка страницы, Page 2)
+const btnSave = document.getElementById('btn-save');
+const btnLoad = document.getElementById('btn-load');
+const storageStatus = document.getElementById('storage-status');
+
+// 1. Сохранение в localStorage
+btnSave.addEventListener('click', () => {
+    // ВАЛИДАЦИЯ: проверяем, не пуста ли корзина перед сохранением
+    if (cart.length === 0) {
+        storageStatus.textContent = "Корзина пуста. Нечего сохранять.";
+        storageStatus.className = "status-message error";
+        storageStatus.style.display = "block";
+        return;
+    }
+
+    // Использую JSON.stringify, ПОТОМУ ЧТО: localStorage может хранить только строки, 
+    // а нам нужно превратить сложный массив объектов в текстовый формат (Page 5).
+    const cartJSON = JSON.stringify(cart);
+    
+    // Сохраняем строку в память браузера под ключом "myCart"
+    localStorage.setItem("myCart", cartJSON);
+
+    // ВЫВОД В КОНСОЛЬ (согласно требованию на Page 5):
+    console.log("--- СОХРАНЕНИЕ ДАННЫХ ---");
+    console.log("Исходный объект (массив):", cart); // Живой объект JS
+    console.log("JSON-строка для хранения:", cartJSON); // Текст в кавычках
+
+    // Обновляем статус на странице
+    storageStatus.textContent = "Корзина успешно сохранена в localStorage!";
+    storageStatus.className = "status-message success";
+    storageStatus.style.display = "block";
+});
+
+// 2. Загрузка из localStorage
+btnLoad.addEventListener('click', () => {
+    // Получаем данные по ключу
+    const savedData = localStorage.getItem("myCart");
+
+    // ПРОВЕРКА (Page 5): Если localStorage пуст — выводим сообщение
+    if (savedData) {
+        // Использую JSON.parse, ПОТОМУ ЧТО: данные из хранилища приходят в виде строки, 
+        // и нам нужно превратить их обратно в массив объектов JavaScript для работы (Page 5).
+        cart = JSON.parse(savedData);
+
+        console.log("--- ЗАГРУЗКА ДАННЫХ ---");
+        console.log("Загружено и распарсено:", cart);
+
+        storageStatus.textContent = "Корзина успешно загружена!";
+        storageStatus.className = "status-message info";
+        
+        // Автоматически обновляем отображение корзины после загрузки, 
+        // имитируя нажатие кнопки «Показать корзину»
+        btnShowCart.click(); 
+    } else {
+        console.log("Нет сохранённых данных");
+        storageStatus.textContent = "Сохранённых данных нет";
+        storageStatus.className = "status-message error";
+    }
+    storageStatus.style.display = "block";
+});
+
+// --- ЗАДАНИЕ 6. СТАТИСТИКА КАТАЛОГА (УРОВЕНЬ PRO) ---
+
+const btnStats = document.getElementById('btn-stats');
+const statsContainer = document.getElementById('stats-container');
+
+btnStats.addEventListener('click', () => {
+    // 1. Общее количество товаров
+    const totalCount = products.length;
+
+    // 2. Количество товаров в наличии
+    // Использую filter, ПОТОМУ ЧТО: нам нужно отобрать из общего массива только те объекты, 
+    // у которых свойство inStock равно true.
+    const inStockCount = products.filter(p => p.inStock).length;
+
+    // 3. Средняя цена всех товаров
+    // Использую map, ПОТОМУ ЧТО: сначала нужно извлечь массив только из числовых значений цен.
+    const prices = products.map(p => p.price);
+    // Использую reduce, ПОТОМУ ЧТО: нужно суммировать все цены для вычисления среднего арифметического.
+    const totalPrice = prices.reduce((acc, price) => acc + price, 0);
+    const avgPrice = (totalPrice / totalCount).toFixed(2); // Округляем до 2 знаков (Page 6)
+
+    // 4. Самый дорогой товар
+    // Использую reduce, ПОТОМУ ЧТО: этот метод позволяет сравнить элементы между собой 
+    // и вернуть один объект, который "победил" по условию (максимальная цена).
+    const mostExpensive = products.reduce((max, p) => p.price > max.price ? p : max, products[0]);
+
+    // 5. Список уникальных категорий
+    // Использую map + Set, ПОТОМУ ЧТО: map соберет все категории в массив (с повторами), 
+    // а структура Set автоматически удалит все дубликаты (Page 6).
+    const uniqueCategories = [...new Set(products.map(p => p.category))];
+
+    // Вывод статистики в HTML (использую классы из твоего CSS: .stat-card, .stat-value)
+    statsContainer.innerHTML = `
+        <div class="stat-card">
+            <div class="stat-value">${totalCount}</div>
+            <div class="stat-label">Всего товаров</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">${inStockCount}</div>
+            <div class="stat-label">В наличии</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">${avgPrice} BYN</div>
+            <div class="stat-label">Средняя цена</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" style="font-size: 1rem;">${mostExpensive.name}</div>
+            <div class="stat-label">Самый дорогой (${mostExpensive.price} BYN)</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" style="font-size: 0.9rem;">${uniqueCategories.join(', ')}</div>
+            <div class="stat-label">Уникальные категории</div>
+        </div>
+    `;
+
+    // Вывод в консоль для проверки (согласно примерам из Page 6)
+    console.log("--- СТАТИСТИКА ---");
+    console.log(`Средняя цена: ${avgPrice} BYN (Ожидалось: 541.25)`);
+    console.log(`Категории:`, uniqueCategories);
+});
+
+// ПРОВЕРКА (Page 1): В коде использованы только ===, нет inline-onclick, 
+// везде присутствуют пояснения к методам перебора.
